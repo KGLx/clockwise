@@ -26,9 +26,14 @@ bool autoBrightEnabled;
 long autoBrightMillis = 0;
 uint8_t currentBrightSlot = -1;
 
+// ...existing code...
 bool isValidI2SSpeed(uint32_t speed) {
-  return speed == 8000000 || speed == 16000000 || speed == 20000000;
+// -  return speed == 8000000 || speed == 16000000 || speed == 20000000;
+  // 允许 2MHz / 4MHz / 8MHz / 16MHz / 20MHz（根据需要调整）
+  return speed == 2000000 || speed == 4000000 || speed == 8000000
+      || speed == 16000000 || speed == 20000000;
 }
+// ...existing code...
 
 bool isValidDriver(uint32_t drv) {
   return drv >= 0 && drv <= 5;
@@ -116,7 +121,10 @@ void setup()
   StatusController::getInstance()->blink_led(5, 100);
 
   ClockwiseParams::getInstance()->load();
-
+  Serial.printf("DEBUG: forcing i2s=%u, driver=%u, E_pin=%u\n",
+                ClockwiseParams::getInstance()->i2cSpeed,
+                ClockwiseParams::getInstance()->driver,
+                ClockwiseParams::getInstance()->E_pin);
   pinMode(ClockwiseParams::getInstance()->ldrPin, INPUT);
 
   uint8_t driver = ClockwiseParams::getInstance()->driver;

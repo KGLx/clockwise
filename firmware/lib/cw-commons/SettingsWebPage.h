@@ -163,7 +163,13 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
         {
           title: "I2C Speed",
           description: "I2S clock speed selector (default: HZ_8M).",
-          formInput: "<select name='speed' id='speed'><option value='8000000'" + (settings.i2cspeed == 8000000 ? " selected='selected'" : "") + ">HZ_8M</option><option value='16000000'" + (settings.i2cspeed == 16000000 ? " selected='selected'" : "") + ">HZ_16M</option><option value='20000000'" + (settings.i2cspeed == 20000000 ? " selected='selected'" : "") + ">HZ_20M</option></select>",
+          formInput: "<select name='speed' id='speed'>"
+                    + "<option value='2000000'" + (settings.i2cspeed == 2000000 ? " selected='selected'" : "") + ">HZ_2M</option>"
+                    + "<option value='4000000'" + (settings.i2cspeed == 4000000 ? " selected='selected'" : "") + ">HZ_4M</option>"
+                    + "<option value='8000000'" + (settings.i2cspeed == 8000000 ? " selected='selected'" : "") + ">HZ_8M</option>"
+                    + "<option value='16000000'" + (settings.i2cspeed == 16000000 ? " selected='selected'" : "") + ">HZ_16M</option>"
+                    + "<option value='20000000'" + (settings.i2cspeed == 20000000 ? " selected='selected'" : "") + ">HZ_20M</option>"
+                    + "</select>",
           save: "updatePreference('i2cSpeed', speed.value)",
           icon: "fa-microchip",
           property: "i2cSpeed"
