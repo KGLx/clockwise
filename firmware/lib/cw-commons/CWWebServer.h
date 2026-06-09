@@ -4,6 +4,7 @@
 #include <CWPreferences.h>
 #include "StatusController.h"
 #include "SettingsWebPage.h"
+#include <functional>
 
 #ifndef CLOCKFACE_NAME
   #define CLOCKFACE_NAME "UNKNOWN"
@@ -17,6 +18,10 @@ struct ClockwiseWebServer
   bool force_restart;
   const char* HEADER_TEMPLATE_D = "X-%s: %d\r\n";
   const char* HEADER_TEMPLATE_S = "X-%s: %s\r\n";
+ 
+  // callback invoked after a preference is saved via web UI
+  // signature: onPreferenceChanged(key, value)
+  std::function<void(const String&, const String&)> onPreferenceChanged;
  
   static ClockwiseWebServer *getInstance()
   {
@@ -137,6 +142,10 @@ struct ClockwiseWebServer
         ClockwiseParams::getInstance()->E_pin = value.toInt();
       }
       ClockwiseParams::getInstance()->save();
+      // notify runtime listeners about preference change
+      if (onPreferenceChanged) {
+        onPreferenceChanged(key, value);
+      }
       client.println("HTTP/1.0 204 No Content");
     }
   }

@@ -204,26 +204,48 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
           document.getElementById("cardButton-" + c.property).setAttribute("onclick", c.save);
         }
       })
-
+      
       document.getElementById("ssid").innerHTML = "<i class='fa fa-wifi'></i> " + settings.wifissid
       document.getElementById("fw-version").innerHTML = "<i class='fa fa-code-fork'></i> Firmware v" + settings.cw_fw_version
+    }
+
+    // keys that take effect immediately without restart
+    const immediateKeys = [
+      "displayBright",
+      "timeZone",
+      "use24hFormat",
+      "ntpServer",
+      "manualPosix"
+    ];
+
+    function prefRequiresRestart(key) {
+      return immediateKeys.indexOf(key) === -1;
     }
 
     function updatePreference(key, value) {
       const xhr = new XMLHttpRequest();
       xhr.onreadystatechange = function () {
-        if (this.readyState == 4 && this.status >= 200 && this.status < 299) {
-          document.getElementById('status').style.display = 'block';
+        if (this.readyState == 4) {
+          const statusEl = document.getElementById('status');
+          if (this.status >= 200 && this.status < 300) {
+            if (prefRequiresRestart(key)) {
+              statusEl.innerHTML = "<i class='fa fa-floppy-o'></i> Saved! Restart your device";
+            } else {
+              statusEl.innerHTML = "<i class='fa fa-floppy-o'></i> Saved!";
+            }
+            statusEl.style.display = 'block';
+            setTimeout(() => { statusEl.style.display = 'none'; }, 2000);
+          } else {
+            statusEl.innerHTML = "<i class='fa fa-exclamation-triangle'></i> Error saving";
+            statusEl.style.display = 'block';
+            setTimeout(() => { statusEl.style.display = 'none'; }, 2000);
+          }
         }
       };
-      xhr.open('POST', '/set?' + key + '=' + value);
+      xhr.open('POST', '/set?' + encodeURIComponent(key) + '=' + encodeURIComponent(value));
       xhr.send();
-
-      setTimeout(() => {
-        document.getElementById('status').style.display = 'none';
-      }, 2000);
     }
-
+    
     function splitHeaders(request) {
       const headers = request.getAllResponseHeaders().trim().split(/[\r\n]+/);
       const headerMap = {};

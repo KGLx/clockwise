@@ -26,14 +26,12 @@ bool autoBrightEnabled;
 long autoBrightMillis = 0;
 uint8_t currentBrightSlot = -1;
 
-// ...existing code...
 bool isValidI2SSpeed(uint32_t speed) {
 // -  return speed == 8000000 || speed == 16000000 || speed == 20000000;
   // 允许 2MHz / 4MHz / 8MHz / 16MHz / 20MHz（根据需要调整）
   return speed == 2000000 || speed == 4000000 || speed == 8000000
       || speed == 16000000 || speed == 20000000;
 }
-// ...existing code...
 
 bool isValidDriver(uint32_t drv) {
   return drv >= 0 && drv <= 5;
@@ -113,6 +111,21 @@ void automaticBrightControl()
   }
 }
 
+// 立即应用亮度（可直接在 web 回调中调用）
+void applyDisplayBrightness(uint8_t b) {
+    ClockwiseParams::getInstance()->displayBright = b; // 更新偏好缓存（可选择同时 save）
+    if (dma_display) {
+        dma_display->setBrightness8(b); // 立即生效
+        Serial.printf("Brightness applied: %u\n", b);
+    }
+    // 如果用户手动设置亮度，通常希望禁用自动亮度或重置其计时器
+    autoBrightEnabled = false;           // 禁用自动亮度（可改为只重置计时器）
+    currentBrightSlot = -1;              // 让之后的 auto 算法重新计算基线
+    autoBrightMillis = millis();
+}
+
+
+
 void setup()
 {
   Serial.begin(115200);
@@ -134,6 +147,46 @@ void setup()
   displaySetup(ClockwiseParams::getInstance()->swapBlueGreen, ClockwiseParams::getInstance()->swapBlueRed, ClockwiseParams::getInstance()->displayBright, ClockwiseParams::getInstance()->displayRotation, driver, i2cSpeed, E_pin);
   clockface = new Clockface(dma_display);
 
+  // 在 setup() 中（或 web server 注册点）注册回调 / 或在保存后直接调用
+  // 例如：当收到 web 设置并解析到 key == "displayBright" 时调用：
+  ClockwiseWebServer::getInstance()->onPreferenceChanged = [](const String& key, const String& value) {
+     // brightness: immediate apply (already implemented)
+     if (key == String(ClockwiseParams::getInstance()->PREF_DISPLAY_BRIGHT)) {
+         uint8_t b = (uint8_t)constrain(value.toInt(), 0, 255);
+         applyDisplayBrightness(b);
+         return;
+     }
+
+     // Time related prefs: reload prefs, re-init cwDateTime and re-setup clockface for immediate effect
+     if (key == String(ClockwiseParams::getInstance()->PREF_TIME_ZONE)
+         || key == String(ClockwiseParams::getInstance()->PREF_USE_24H_FORMAT)
+         || key == String(ClockwiseParams::getInstance()->PREF_NTP_SERVER)
+         || key == String(ClockwiseParams::getInstance()->PREF_MANUAL_POSIX))
+     {
+         // Ensure in-memory prefs reflect saved values
+         ClockwiseParams::getInstance()->load();
+
+         // Reinitialize time subsystem with new settings.
+         // cwDateTime.begin(timeZone, use24hFormat, ntpServer, manualPosix)
+         // (same call as in setup)
+         Serial.println("Applying time settings at runtime...");
+         cwDateTime.begin(
+             ClockwiseParams::getInstance()->timeZone.c_str(),
+             ClockwiseParams::getInstance()->use24hFormat,
+             ClockwiseParams::getInstance()->ntpServer.c_str(),
+             ClockwiseParams::getInstance()->manualPosix.c_str()
+         );
+
+         // Re-run clockface setup so it uses updated cwDateTime formatting/settings immediately
+         if (clockface) {
+             clockface->setup(&cwDateTime);
+             Serial.println("Clockface re-setup with new time settings.");
+         }
+         return;
+     }
+
+     // Other prefs that may be applied immediately can be handled here...
+   };
   autoBrightEnabled = (ClockwiseParams::getInstance()->autoBrightMax > 0);
 
   StatusController::getInstance()->clockwiseLogo();
@@ -149,6 +202,7 @@ void setup()
         ClockwiseParams::getInstance()->manualPosix.c_str());
     clockface->setup(&cwDateTime);
   }
+
 }
 
 void loop()
