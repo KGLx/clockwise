@@ -1,0 +1,6 @@
+{
+  "name": "cw-cf-0x03",
+  "version": "1.0.0",
+  "dependencies": ["cw-commons"],
+  "build": {}
+}
