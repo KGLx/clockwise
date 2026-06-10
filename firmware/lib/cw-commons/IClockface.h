@@ -3,9 +3,11 @@
 #include "CWDateTime.h"
 
 class IClockface {
+public:
+  virtual ~IClockface() {}
 
-    //virtual void setup(DateTime *dateTime) = 0;
-    virtual void setup(CWDateTime *dateTime) = 0;
-    virtual void update() = 0;
-
+  // 确保这些接口是 public
+  virtual void setup(CWDateTime* dt) = 0;
+  virtual void update() = 0;
+  virtual void externalEvent(int type) = 0;
 };

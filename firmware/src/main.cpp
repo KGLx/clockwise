@@ -2,13 +2,14 @@
 #include <ESP32-HUB75-MatrixPanel-I2S-DMA.h>
 
 // Clockface
-#include <Clockface.h>
+#include <ClockfaceRegistry.h>
 // Commons
 #include <WiFiController.h>
 #include <CWDateTime.h>
 #include <CWPreferences.h>
 #include <CWWebServer.h>
 #include <StatusController.h>
+#include <IClockface.h>
 
 #define MIN_BRIGHT_DISPLAY_ON 4
 #define MIN_BRIGHT_DISPLAY_OFF 0
@@ -17,14 +18,16 @@
 
 MatrixPanel_I2S_DMA *dma_display = nullptr;
 
-Clockface *clockface;
+IClockface *clockfaceInstance = nullptr;
 
 WiFiController wifi;
 CWDateTime cwDateTime;
 
 bool autoBrightEnabled;
 long autoBrightMillis = 0;
-uint8_t currentBrightSlot = -1;
+int currentBrightSlot = -1;
+// 标记是否已经完成 cwDateTime.begin()
+bool cwDateTimeInitialized = false;
 
 bool isValidI2SSpeed(uint32_t speed) {
 // -  return speed == 8000000 || speed == 16000000 || speed == 20000000;
@@ -124,7 +127,51 @@ void applyDisplayBrightness(uint8_t b) {
     autoBrightMillis = millis();
 }
 
+static void createClockfaceFromPref() {
+  if (clockfaceInstance) {
+    delete clockfaceInstance;
+    clockfaceInstance = nullptr;
+  }
 
+  const char* cfId = ClockwiseParams::getInstance()->clockfaceName.c_str();
+  Serial.printf("[CF] trying to create clockface '%s'\n", cfId);
+
+  // 打印 registry 内容，帮助调试
+  const auto &reg = ClockfaceRegistry::list();
+  Serial.printf("[CF] registry count: %u\n", (unsigned)reg.size());
+  for (size_t i = 0; i < reg.size(); ++i) {
+    Serial.printf("  [%u] id=%s name=%s\n", (unsigned)i, reg[i].id, reg[i].name);
+  }
+
+  // 先尝试用偏好里的 id 创建
+  clockfaceInstance = ClockfaceRegistry::create(cfId, dma_display);
+  if (!clockfaceInstance) {
+    if (!reg.empty()) {
+      // 回退到 registry 的第一个表盘（确保能创建）
+      Serial.printf("[CF] unknown clockface id '%s', falling back to '%s'\n", cfId, reg[0].id);
+      ClockwiseParams::getInstance()->clockfaceName = String(reg[0].id);
+      ClockwiseParams::getInstance()->save();
+      clockfaceInstance = ClockfaceRegistry::create(reg[0].id, dma_display);
+      if (!clockfaceInstance) {
+        Serial.println("[CF] fallback creation failed unexpectedly");
+        return;
+      }
+    } else {
+      Serial.println("[CF] registry is empty — no clockfaces registered. Aborting create.");
+      return;
+    }
+  }
+
+  // 只有当时间服务已就绪才调用 setup（避免依赖未初始化资源）
+  if (clockfaceInstance && cwDateTimeInitialized) {
+    clockfaceInstance->setup(&cwDateTime);
+  } else if (clockfaceInstance) {
+    Serial.println("[CF] created instance but cwDateTime not initialized yet");
+  }
+}
+
+// 声明注册函数（定义在上面的新文件里）
+extern void registerAllClockfaces();
 
 void setup()
 {
@@ -145,48 +192,51 @@ void setup()
   uint8_t E_pin = ClockwiseParams::getInstance()->E_pin;
   
   displaySetup(ClockwiseParams::getInstance()->swapBlueGreen, ClockwiseParams::getInstance()->swapBlueRed, ClockwiseParams::getInstance()->displayBright, ClockwiseParams::getInstance()->displayRotation, driver, i2cSpeed, E_pin);
-  clockface = new Clockface(dma_display);
+  // don't instantiate a global-named Clockface directly; use registry factory
+  // createClockfaceFromPref will construct the selected clockface (from prefs)
+  // and handle deletion of any previous instance.
+  // (createClockfaceFromPref is called again later, but call it here to ensure display is initialized)
+  // 显式注册所有表盘，保证 registry 非空
+  registerAllClockfaces();
 
-  // 在 setup() 中（或 web server 注册点）注册回调 / 或在保存后直接调用
-  // 例如：当收到 web 设置并解析到 key == "displayBright" 时调用：
-  ClockwiseWebServer::getInstance()->onPreferenceChanged = [](const String& key, const String& value) {
-     // brightness: immediate apply (already implemented)
-     if (key == String(ClockwiseParams::getInstance()->PREF_DISPLAY_BRIGHT)) {
-         uint8_t b = (uint8_t)constrain(value.toInt(), 0, 255);
-         applyDisplayBrightness(b);
-         return;
-     }
+  // 之后再创建表盘实例
+  createClockfaceFromPref();
 
-     // Time related prefs: reload prefs, re-init cwDateTime and re-setup clockface for immediate effect
-     if (key == String(ClockwiseParams::getInstance()->PREF_TIME_ZONE)
-         || key == String(ClockwiseParams::getInstance()->PREF_USE_24H_FORMAT)
-         || key == String(ClockwiseParams::getInstance()->PREF_NTP_SERVER)
-         || key == String(ClockwiseParams::getInstance()->PREF_MANUAL_POSIX))
-     {
-         // Ensure in-memory prefs reflect saved values
-         ClockwiseParams::getInstance()->load();
+  // 在 webserver 偏好变化时切换表盘（CWWebServer 中已声明 onPreferenceChanged）
+  ClockwiseWebServer::getInstance()->onPreferenceChanged = [](const String& key, const String& val){
+    Serial.printf("[PREF] Changed: %s = %s\n", key.c_str(), val.c_str());
+    if (key == String(ClockwiseParams::getInstance()->PREF_CLOCKFACE)) {
+      ClockwiseParams::getInstance()->clockfaceName = val;
+      ClockwiseParams::getInstance()->save();
+      createClockfaceFromPref();
+    } else if (key == String(ClockwiseParams::getInstance()->PREF_DISPLAY_BRIGHT)) {
+      uint8_t b = val.toInt();
+      dma_display->setBrightness8(b);
+      Serial.printf("[PREF] Brightness updated to %d\n", b);
+    } else if (key == String(ClockwiseParams::getInstance()->PREF_TIME_ZONE)
+            || key == String(ClockwiseParams::getInstance()->PREF_USE_24H_FORMAT)
+            || key == String(ClockwiseParams::getInstance()->PREF_NTP_SERVER)
+            || key == String(ClockwiseParams::getInstance()->PREF_MANUAL_POSIX)) {
+      // Ensure in-memory prefs reflect saved values
+      ClockwiseParams::getInstance()->load();
 
-         // Reinitialize time subsystem with new settings.
-         // cwDateTime.begin(timeZone, use24hFormat, ntpServer, manualPosix)
-         // (same call as in setup)
-         Serial.println("Applying time settings at runtime...");
-         cwDateTime.begin(
-             ClockwiseParams::getInstance()->timeZone.c_str(),
-             ClockwiseParams::getInstance()->use24hFormat,
-             ClockwiseParams::getInstance()->ntpServer.c_str(),
-             ClockwiseParams::getInstance()->manualPosix.c_str()
-         );
+      // Reinitialize time subsystem with new settings
+      Serial.println("[PREF] Applying time settings at runtime...");
+      cwDateTime.begin(
+          ClockwiseParams::getInstance()->timeZone.c_str(),
+          ClockwiseParams::getInstance()->use24hFormat,
+          ClockwiseParams::getInstance()->ntpServer.c_str(),
+          ClockwiseParams::getInstance()->manualPosix.c_str()
+      );
 
-         // Re-run clockface setup so it uses updated cwDateTime formatting/settings immediately
-         if (clockface) {
-             clockface->setup(&cwDateTime);
-             Serial.println("Clockface re-setup with new time settings.");
-         }
-         return;
-     }
+      // Re-run clockface setup so it uses updated cwDateTime formatting/settings immediately
+      if (clockfaceInstance) {
+        clockfaceInstance->setup(&cwDateTime);
+        Serial.println("[PREF] Clockface re-setup with new time settings.");
+      }
+    }
+  };
 
-     // Other prefs that may be applied immediately can be handled here...
-   };
   autoBrightEnabled = (ClockwiseParams::getInstance()->autoBrightMax > 0);
 
   StatusController::getInstance()->clockwiseLogo();
@@ -200,7 +250,11 @@ void setup()
         ClockwiseParams::getInstance()->use24hFormat, 
         ClockwiseParams::getInstance()->ntpServer.c_str(),
         ClockwiseParams::getInstance()->manualPosix.c_str());
-    clockface->setup(&cwDateTime);
+    // 标记时间服务已就绪，并确保已创建的表盘完成 setup
+    cwDateTimeInitialized = true;
+    if (clockfaceInstance) {
+      clockfaceInstance->setup(&cwDateTime);
+    }
   }
 
 }
@@ -217,7 +271,7 @@ void loop()
 
   if (wifi.connectionSucessfulOnce)
   {
-    clockface->update();
+    if (clockfaceInstance) clockfaceInstance->update();
   }
 
   automaticBrightControl();

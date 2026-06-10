@@ -4,6 +4,7 @@
 #include <CWPreferences.h>
 #include "StatusController.h"
 #include "SettingsWebPage.h"
+#include <ClockfaceRegistry.h>
 #include <functional>
 
 #ifndef CLOCKFACE_NAME
@@ -140,6 +141,8 @@ struct ClockwiseWebServer
         ClockwiseParams::getInstance()->i2cSpeed = value.toInt();
       }  else if (key == ClockwiseParams::getInstance()->PREF_E_PIN) {
         ClockwiseParams::getInstance()->E_pin = value.toInt();
+      } else if (key == ClockwiseParams::getInstance()->PREF_CLOCKFACE) {
+        ClockwiseParams::getInstance()->clockfaceName = value;
       }
       ClockwiseParams::getInstance()->save();
       // notify runtime listeners about preference change
@@ -184,10 +187,21 @@ struct ClockwiseWebServer
     client.printf(HEADER_TEMPLATE_D, ClockwiseParams::getInstance()->PREF_DRIVER, ClockwiseParams::getInstance()->driver);
     client.printf(HEADER_TEMPLATE_D, ClockwiseParams::getInstance()->PREF_I2CSPEED, ClockwiseParams::getInstance()->i2cSpeed);
     client.printf(HEADER_TEMPLATE_D, ClockwiseParams::getInstance()->PREF_E_PIN, ClockwiseParams::getInstance()->E_pin);
+    client.printf(HEADER_TEMPLATE_S, ClockwiseParams::getInstance()->PREF_CLOCKFACE, ClockwiseParams::getInstance()->clockfaceName.c_str());
 
-    client.printf(HEADER_TEMPLATE_S, "CW_FW_VERSION", CW_FW_VERSION);
-    client.printf(HEADER_TEMPLATE_S, "CW_FW_NAME", CW_FW_NAME);
-    client.printf(HEADER_TEMPLATE_S, "CLOCKFACE_NAME", CLOCKFACE_NAME);
+    // Build clockfaces list: "id:name;id2:name2"
+    String clockfacesList = "";
+    const auto &reg = ClockfaceRegistry::list();
+    for (size_t i = 0; i < reg.size(); ++i) {
+      if (i > 0) clockfacesList += ";";
+      clockfacesList += String(reg[i].id) + ":" + String(reg[i].name);
+    }
+    if (clockfacesList.length() > 0) {
+      client.printf(HEADER_TEMPLATE_S, "clockfaces", clockfacesList.c_str());
+    }
+
+    client.printf(HEADER_TEMPLATE_S, "cw_fw_version", CW_FW_VERSION);
+    client.printf(HEADER_TEMPLATE_S, "cw_fw_name", CW_FW_NAME);
     client.println();
   }
   

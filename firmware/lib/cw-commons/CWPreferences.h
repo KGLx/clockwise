@@ -25,6 +25,7 @@ struct ClockwiseParams
     const char* const PREF_CANVAS_FILE = "canvasFile";
     const char* const PREF_CANVAS_SERVER = "canvasServer";
     const char* const PREF_MANUAL_POSIX = "manualPosix";
+    const char* const PREF_CLOCKFACE = "clockface";
     const char* const PREF_DISPLAY_ROTATION = "displayRotation";
     const char* const PREF_DRIVER = "driver";
     const char* const PREF_I2CSPEED = "i2cSpeed";
@@ -44,6 +45,7 @@ struct ClockwiseParams
     String canvasFile;
     String canvasServer;
     String manualPosix;
+    String clockfaceName = "cw-cf-0x01"; // 默认表盘 id
     uint8_t displayRotation;
     uint8_t driver;
     uint32_t i2cSpeed;
@@ -76,6 +78,7 @@ struct ClockwiseParams
         preferences.putString(PREF_CANVAS_FILE, canvasFile);
         preferences.putString(PREF_CANVAS_SERVER, canvasServer);
         preferences.putString(PREF_MANUAL_POSIX, manualPosix);
+        preferences.putString(PREF_CLOCKFACE, clockfaceName);
         preferences.putUInt(PREF_DISPLAY_ROTATION, displayRotation);
         preferences.putUInt(PREF_DRIVER, driver);
         preferences.putUInt(PREF_I2CSPEED, i2cSpeed);
@@ -98,6 +101,7 @@ struct ClockwiseParams
         canvasFile = preferences.getString(PREF_CANVAS_FILE, "");
         canvasServer = preferences.getString(PREF_CANVAS_SERVER, "raw.githubusercontent.com");
         manualPosix = preferences.getString(PREF_MANUAL_POSIX, "");
+        clockfaceName = preferences.getString(PREF_CLOCKFACE, "cw-cf-0x01");
         displayRotation = preferences.getUInt(PREF_DISPLAY_ROTATION, 0);
         driver = preferences.getUInt(PREF_DRIVER, 0);
         i2cSpeed = preferences.getUInt(PREF_I2CSPEED, (uint32_t)8000000);

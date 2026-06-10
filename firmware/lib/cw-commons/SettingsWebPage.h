@@ -52,6 +52,35 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
   <script>
     function createCards(settings) {
       console.log(settings);
+
+     // build clockface selector from header "clockfaces" expected as "id:name;id2:name2"
+     var cfOptions = "";
+     if (settings.clockfaces) {
+       settings.clockfaces.split(';').forEach(function(pair) {
+         if (!pair) return;
+         var parts = pair.split(':');
+         if (parts.length !== 2) return;
+         var id = parts[0];
+         var name = parts[1];
+         var sel = (settings.clockface === id) ? " selected='selected'" : "";
+         cfOptions += "<option value='" + id + "'" + sel + ">" + name + "</option>";
+       });
+     }
+
+     // build clockface card only if options present
+     var cfCard = null;
+     if (cfOptions !== "") {
+       // inject clockface selector as first card
+       cfCard = {
+         title: "Clockface",
+         description: "Select the active clockface (applies immediately).",
+         formInput: "<select id='clockface'>" + cfOptions + "</select>",
+         icon: "fa-columns",
+         save: "updatePreference('clockface', clockface.value)",
+         property: "clockface"
+       };
+     }
+
       const cards = [
         {
           title: "Display Bright",
@@ -59,7 +88,7 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
           formInput: "<input class='w3-input w3-border' type='range' min='0' max='255' value='" + settings.displaybright + "' class='slider' id='bright' oninput='rangevalue.value=value'>",
           icon: "fa-adjust",
           save: "updatePreference('displayBright', bright.value)",
-          property: "displayBright"
+          property: "displaybright"
         },
         {
           title: "Use 24h format?",
@@ -67,7 +96,7 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
           formInput: "<input class='w3-check' type='checkbox' id='use24h' " + (settings.use24hformat == '1' ? "checked" : "") + "><label for='use24h'> Yep</label>",
           icon: "fa-clock-o",
           save: "updatePreference('use24hFormat', Number(use24h.checked))",
-          property: "use24hFormat"
+          property: "use24hformat"
         },
         {
           title: "Swap Blue/Green pins?",
@@ -75,7 +104,7 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
           formInput: "<input class='w3-check' type='checkbox' id='swapBG' " + (settings.swapbluegreen == '1' ? "checked" : "") + "><label for='swapBG'> Yep</label>",
           icon: "fa-random",
           save: "updatePreference('swapBlueGreen', Number(swapBG.checked))",
-          property: "swapBlueGreen"
+          property: "swapbluegreen"
         },
         {
           title: "Swap Blue/Red pins?",
@@ -83,7 +112,7 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
           formInput: "<input class='w3-check' type='checkbox' id='swapBR' " + (settings.swapbluered == '1' ? "checked" : "") + "><label for='swapBR'> Yep</label>",
           icon: "fa-random",
           save: "updatePreference('swapBlueRed', Number(swapBR.checked))",
-          property: "swapBlueRed"
+          property: "swapbluered"
         },        
         {
           title: "Timezone",
@@ -91,7 +120,7 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
           formInput: "<input id='tz' class='w3-input w3-light-grey' name='tz' type='text' placeholder='Timezone' value='" + settings.timezone + "'>",
           icon: "fa-globe",
           save: "updatePreference('timeZone', tz.value)",
-          property: "timeZone"
+          property: "timezone"
         },
         {
           title: "NTP Server",
@@ -99,7 +128,7 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
           formInput: "<input id='ntp' class='w3-input w3-light-grey' name='ntp' type='text' placeholder='NTP Server' value='" + settings.ntpserver + "'>",
           icon: "fa-server",
           save: "updatePreference('ntpServer', ntp.value)",
-          property: "ntpServer"
+          property: "ntpserver"
         },
         {
           title: "Automatic Bright",
@@ -108,7 +137,7 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
                      "<input id='autoBrightMax' class='w3-input w3-light-grey w3-cell' name='autoBrightMax' style='width:45%;' type='number' min='0' max='4095' placeholder='Max value' value='" + settings.autobrightmax + "'>",
           icon: "fa-sun-o",
           save: "updatePreference('autoBright', autoBrightMin.value.padStart(4, '0') + ',' + autoBrightMax.value.padStart(4, '0'))",
-          property: "autoBright"
+          property: "autobright"
         },
         {
           title: "LDR Pin",
@@ -116,7 +145,7 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
           formInput: "<input id='ldrPin' class='w3-input w3-light-grey' name='ldrPin' type='number' min='0' max='39' value='" + settings.ldrpin + "'>",
           icon: "fa-microchip",
           save: "updatePreference('ldrPin', ldrPin.value)",
-          property: "ldrPin"
+          property: "ldrpin"
         },
         {
           title: "[Canvas] Description file",
@@ -124,7 +153,7 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
           formInput: "<input id='descFile' class='w3-input w3-light-grey' name='descFile' type='text' placeholder='Description File' value='" + settings.canvasfile + "'>",
           icon: "fa-file-image-o",
           save: "updatePreference('canvasFile', descFile.value)",
-          property: "canvasFile",
+          property: "canvasfile",
           exclusive: "cw-cf-0x07"
         },
         {
@@ -133,7 +162,7 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
           formInput: "<input id='serverAddress' class='w3-input w3-light-grey' name='serverAddress' type='text' placeholder='Canvas Server' value='" + settings.canvasserver + "'>",
           icon: "fa-server",
           save: "updatePreference('canvasServer', serverAddress.value)",
-          property: "canvasServer",
+          property: "canvasserver",
           exclusive: "cw-cf-0x07"
         },
         {
@@ -142,7 +171,7 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
           formInput: "<input id='posixString' class='w3-input w3-light-grey' name='posixString' type='text' placeholder='Manual Posix String' value='" + settings.manualposix + "'>",
           icon: "fa-globe",
           save: "updatePreference('manualPosix', posixString.value)",
-          property: "manualPosix"
+          property: "manualposix"
         },
         {
           title: "Rotation",
@@ -150,7 +179,7 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
           formInput: "<select name='rotation' id='rotation'><option value='0'" + (settings.displayrotation == 0 ? " selected='selected'" : "") + ">0</option><option value='1'" + (settings.displayrotation == 1 ? " selected='selected'" : "") + ">90</option><option value='2'" + (settings.displayrotation == 2 ? " selected='selected'" : "") + ">180</option><option value='3'" + (settings.displayrotation == 3 ? " selected='selected'" : "") + ">270</option></select>",
           icon: "fa-rotate-right",
           save: "updatePreference('displayRotation', rotation.value)",
-          property: "displayRotation"
+          property: "displayrotation"
         },
         {
           title: "Matrix Shift Driver",
@@ -172,7 +201,7 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
                     + "</select>",
           save: "updatePreference('i2cSpeed', speed.value)",
           icon: "fa-microchip",
-          property: "i2cSpeed"
+          property: "i2cspeed"
         },          
         {
           title: "E Pin",
@@ -180,14 +209,18 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
           formInput: "<input id='E_pin' class='w3-input w3-light-grey' name='E_pin' type='number' min='0' max='32' value='" + settings.e_pin + "'>",
           icon: "fa-microchip",
           save: "updatePreference('E_pin', E_pin.value)",
-          property: "E_pin"
+          property: "e_pin"
         }        
       ];
 
+     // prepend clockface selector if available
+     if (cfCard !== null) {
+       cards.unshift(cfCard);
+     }
       var base = document.querySelector('#base');
       cards.forEach(c => {
 
-        if (!c.hasOwnProperty('exclusive') || (c.hasOwnProperty('exclusive') && c.exclusive === settings.clockface_name)) {
+        if (!c.hasOwnProperty('exclusive') || (c.hasOwnProperty('exclusive') && c.exclusive === settings.clockface)) {
           var clone = base.cloneNode(true);
           clone.id = c.property + "-card";
           clone.removeAttribute("style");
@@ -215,7 +248,8 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
       "timeZone",
       "use24hFormat",
       "ntpServer",
-      "manualPosix"
+      "manualPosix",
+      "clockface"
     ];
 
     function prefRequiresRestart(key) {
@@ -247,13 +281,19 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
     }
     
     function splitHeaders(request) {
-      const headers = request.getAllResponseHeaders().trim().split(/[\r\n]+/);
+      const raw = request.getAllResponseHeaders().trim();
+      if (!raw) return {};
+      const lines = raw.split(/[\s]*[\r\n]+/).filter(Boolean);
       const headerMap = {};
-      headers.forEach((line) => {
-        const parts = line.split(": ");
-        const header = parts.shift().substring(2);
-        const value = parts.join(": ");
-        headerMap[header] = value;
+      lines.forEach((line) => {
+        const idx = line.indexOf(':');
+        if (idx === -1) return; // skip status line or malformed
+        // normalize header name: strip leading 'x-' if present, convert to lowercase
+        let name = line.substring(0, idx).trim().toLowerCase();
+        if (name.startsWith('x-')) name = name.substring(2);
+        const value = line.substring(idx + 1).trim();
+        headerMap[name] = value;
+        console.log('Header parsed:', name, '=', value);
       });
       return headerMap;
     }
@@ -261,25 +301,68 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
     function requestGet(path, cb) {
       var xmlhttp = new XMLHttpRequest();
       xmlhttp.onreadystatechange = function () {
-        if (this.readyState === 2 && this.status === 204) {
+        if (this.readyState === 4 && (this.status === 200 || this.status === 204)) {
           cb(this);
         }
       };
       xmlhttp.open("GET", path, true);
       xmlhttp.send();
     }
-    
-    function readPin(pin) {
-      requestGet("/read?pin=" + pin, (req) => {
-        var headers = splitHeaders(req);
-        document.getElementById("ldrPinRead").innerHTML = headers.pin;  
-      });  
-    }
 
     function begin() {
       requestGet("/get", (req) => {
-        createCards(splitHeaders(req));
-      });  
+        var headers = splitHeaders(req); // already normalized
+        var body = {};
+        try {
+          body = JSON.parse(req.responseText || "{}");
+        } catch (e) {
+          body = {};
+        }
+
+        // normalize body keys to lowercase (remove dashes)
+        var norm = {};
+        for (var k in body) {
+          if (!body.hasOwnProperty(k)) continue;
+          var nk = k.toLowerCase().replace(/-/g, '');
+          norm[nk] = body[k];
+        }
+
+        // if clockfaces provided in body as array, convert to "id:name;..." string
+        if (!norm.clockfaces && body.clockfaces) {
+          if (Array.isArray(body.clockfaces)) {
+            norm.clockfaces = body.clockfaces.map(x => (x.id || x.name) ? (x.id + ":" + (x.name || x.id)) : "").filter(Boolean).join(';');
+          } else if (typeof body.clockfaces === 'string') {
+            norm.clockfaces = body.clockfaces;
+          }
+        }
+
+        // Merge: body values (norm) first, then headers override if present
+        var settings = Object.assign({}, norm, headers);
+
+        // Coerce numeric/boolean values and provide defaults
+        settings.displaybright = parseInt(settings.displaybright || 128, 10);
+        settings.use24hformat = (settings.use24hformat === undefined) ? false : !!(settings.use24hformat == '1' || settings.use24hformat === true || settings.use24hformat === 'true');
+        settings.swapbluegreen = settings.swapbluegreen || 0;
+        settings.swapbluered = settings.swapbluered || 0;
+        settings.timezone = settings.timezone || '';
+        settings.ntpserver = settings.ntpserver || '';
+        settings.autobrightmin = settings.autobrightmin || 0;
+        settings.autobrightmax = settings.autobrightmax || 4095;
+        settings.ldrpin = settings.ldrpin || 35;
+        settings.canvasfile = settings.canvasfile || '';
+        settings.canvasserver = settings.canvasserver || '';
+        settings.manualposix = settings.manualposix || '';
+        settings.displayrotation = settings.displayrotation || 0;
+        settings.driver = parseInt(settings.driver || 0, 10);
+        settings.i2cspeed = parseInt(settings.i2cspeed || 8000000, 10);
+        settings.e_pin = parseInt(settings.e_pin || 18, 10);
+        settings.clockface = settings.clockface || 'cw-cf-0x01';
+
+        // Provide firmware/version & wifi defaults if missing
+        settings.cw_fw_version = settings.cw_fw_version || '0.0.0';
+        settings.wifissid = settings.wifissid || '';
+        createCards(settings);
+      });
     }
 
     function restartDevice() {
@@ -289,7 +372,7 @@ const char SETTINGS_PAGE[] PROGMEM = R""""(
     }
 
     //Local
-    //createCards({ "displayBright": 30, "swapBlueGreen": 1, "swapBlueRed": 0, "use24hFormat": 0, "timeZone": "Europe/Lisbon", "ntpServer": "pool.ntp.org", "wifiSsid": "test", "autoBrightMin":0, "autoBrightMax":800, "ldrPin":35, "driver":1, "i2cspeed":16000000, "e_pin":18, "cw_fw_version":"1.2.2", "clockface_name":"cw-cf-0x07", "canvasServer":"raw.githubusercontent.com", "canvasFile":"star-wars.json" });
+    //createCards({ "displayBright": 30, "swapBlueGreen": 1, "swapBlueRed": 0, "use24hFormat": 0, "timeZone": "Europe/Lisbon", "ntpServer": "pool.ntp.org", "wifiSsid": "test", "autoBrightMin":0, "autoBrightMax":800, "ldrPin":35, "driver":1, "i2cspeed":16000000, "e_pin":18, "cw_fw_version":"1.2.2", "clockface":"cw-cf-0x07", "canvasServer":"raw.githubusercontent.com", "canvasFile":"star-wars.json" });
 
     //Embedded
     begin();
